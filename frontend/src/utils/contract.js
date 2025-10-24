@@ -58,7 +58,7 @@ export const connectWallet = async () => {
   await window.ethereum.request({ method: "eth_requestAccounts" });
   provider = new ethers.BrowserProvider(window.ethereum);
   signer = await provider.getSigner();
-  contract = new ethers.Contract(CONTRACT_ADDRESS, abi, signer);
+  contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
 const address = await signer.getAddress();
 return address;
 };
