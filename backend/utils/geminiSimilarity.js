@@ -51,7 +51,7 @@ export const isCopiedWork = async (newIpfsHash, existingHashes) => {
       )}%`
     );
 
-    if (similarity >= 80) {
+    if (similarity >= 60) {
       return { copied: true, match: hash, similarity };
     }
   }

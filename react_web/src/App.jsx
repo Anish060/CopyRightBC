@@ -246,7 +246,7 @@ const handleRegister = async (e) => {
     console.error(err);
 
     const similarityMsg = err.response?.data?.similarity
-      ? `⚠️ Work rejected! Similarity: ${err.response.data.similarity}% with ${err.response.data.match}`
+      ? `⚠️ Work rejected! Similarity with ${err.response.data.match}`
       : "";
 
     setMessage(`❌ Registration failed. ${similarityMsg} ${err.message || ""}`);
