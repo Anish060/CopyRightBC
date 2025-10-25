@@ -208,91 +208,54 @@ function App() {
   };
 
   // Register copyright (COMBINED DB, IPFS, and BLOCKCHAIN LOGIC)
- const handleRegister = async (e) => {
-    e.preventDefault();
-    if (!file) return setMessage("⚠️ Please select a file");
-    if (!account) return setMessage("⚠️ Connect your wallet first");
+const handleRegister = async (e) => {
+  e.preventDefault();
+  if (!file) return setMessage("⚠️ Please select a file");
+  if (!account) return setMessage("⚠️ Connect your wallet first");
 
-    setIsRegistering(true);
-    setMessage("⏳ Uploading file to IPFS...");
+  setIsRegistering(true);
+  setMessage("⏳ Uploading file to IPFS...");
 
-    try {
-        // 1. Upload file to IPFS (via backend API)
-        const formData = new FormData();
-        formData.append("file", file);
+  try {
+    // 1️⃣ Upload file to IPFS
+    const formData = new FormData();
+    formData.append("file", file);
+    const ipfsRes = await axios.post(`${API_BASE_URL}/api/register`, formData);
+    const ipfsHash = ipfsRes.data.ipfsHash;
 
-        const ipfsRes = await axios.post(`${API_BASE_URL}/api/register`, formData);
-        const ipfsHash = ipfsRes.data.ipfsHash;
+    setMessage(`⏳ IPFS Hash generated: ${ipfsHash}. Checking similarity...`);
 
-        setMessage(`⏳ IPFS Hash generated: ${ipfsHash}. Registering on Blockchain... (Confirm in MetaMask)`);
+    // 2️⃣ Backend similarity check + DB insert
+    const dbRes = await axios.post(`${API_BASE_URL}/user/register`, {
+      title: workTitle,
+      type: contentType,
+      creator: creatorName,
+      wallet_id: account,
+      ipfs_hash: ipfsHash,
+      status: "Registered"
+    });
 
-        // 2. Register Hash on Blockchain (Smart Contract Call)
-        const receipt = await registerWork(ipfsHash);
+    // If backend allowed registration → register on Blockchain
+    setMessage(`⏳ Registering work on blockchain... Confirm in MetaMask`);
+    await registerWork(ipfsHash); // No receipt check needed
 
-       /* // 🛡️ CRITICAL SAFETY CHECK 1: Ensure the receipt is valid
-        if (!receipt || !receipt.transactionHash) {
-             // If the utility fails silently, throw an error to trigger the catch block.
-            throw new Error("Blockchain utility returned an invalid receipt. Transaction may have been cancelled.");
-        }
-        
-        // Define transactionHash immediately after the check
-        const transactionHash = receipt.transactionHash; 
+    setMessage(`✅ Successfully registered! IPFS: ${ipfsHash}`);
+    fetchWorks(); // refresh dashboard
+    document.getElementById("registrationForm").reset();
+  } catch (err) {
+    console.error(err);
 
-        setMessage(`⏳ Blockchain transaction successful! Tx: ${transactionHash.slice(0, 8)}... Saving metadata to database...`);
-        */
-        // 3. Register metadata to DB
-        const workData = {
-            title: workTitle,
-            type: contentType,
-            creator: creatorName,
-            wallet_id: account,
-            ipfs_hash: ipfsHash,
-            // <-- **CRITICAL: Include the transaction hash**
-            status: "Registered",
-        };
+    const similarityMsg = err.response?.data?.similarity
+      ? `⚠️ Work rejected! Similarity: ${err.response.data.similarity}% with ${err.response.data.match}`
+      : "";
 
-        const dbRes = await axios.post(`${API_BASE_URL}/user/register`, workData);
+    setMessage(`❌ Registration failed. ${similarityMsg} ${err.message || ""}`);
+  } finally {
+    setIsRegistering(false);
+  }
+};
 
-        // 🛡️ CRITICAL SAFETY CHECK 2: Ensure the DB response is valid
-        const registrationId = dbRes.data?.registration_id || 'N/A';
-        
-        setMessage(
-            `✅ Successfully Registered!\n📦 IPFS: ${ipfsHash}\n🔗 \n🆔 DB ID: ${registrationId}`
-        );
-
-        // Manually trigger a dashboard refresh after successful registration
-        fetchWorks(); 
-        
-        // Clear form inputs
-        setFile(null);
-        setContentType("");
-        setCreatorName("");
-        setWorkTitle("");
-        document.getElementById("registrationForm").reset();
-
-    } catch (err) {
-        console.error("Registration Error:", err);
-        
-        let errorMessage = "An unexpected network or blockchain error occurred.";
-
-        // Keep the robust error checking in the catch block
-        if (err.code === 4001) {
-            errorMessage = "MetaMask transaction was **rejected by the user**.";
-        } else if (err.message && (err.message.includes("Work already registered") || err.message.includes("reverted"))) {
-            errorMessage = "This work is **already registered** on the contract (duplicate IPFS hash).";
-        } else if (err.message) {
-            errorMessage = err.message;
-        } else if (err.response?.data?.message) {
-            // This captures the database error if it fails (Step 3 failure)
-            errorMessage = `Database Error: ${err.response.data.message}`;
-        }
-
-        setMessage(`❌ Registration failed: ${errorMessage}`);
-
-    } finally {
-        setIsRegistering(false);
-    }
-}; // Verify copyright (Unchanged, as it uses getWork from contract)
+ // Verify copyright (Unchanged, as it uses getWork from contract)
   const handleVerify = async (e) => {
     e.preventDefault();
     if (!hashValue && !verifyFile) return setMessage("⚠️ Provide file or hash");
